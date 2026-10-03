@@ -1,0 +1,21 @@
+/* jsPDF (MIT). Rasterized Japanese text stays legible without uploading data or loading remote fonts. */
+'use strict';
+const AltaReport={async download(records,{demo,countryName,feeds}){
+ if(!window.jspdf?.jsPDF)throw Error('PDFライブラリを読み込めません。ネットワーク接続を確認してください。');
+ await document.fonts.ready;
+ const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+ doc.setProperties({title:'ALTA SYSTEM - Selected NOTAM report',author:'ALTA SYSTEM',subject:demo?'Fictional simulation data':'NOTAM research snapshot'});
+ const canvas=document.createElement('canvas');canvas.width=1240;canvas.height=1754;const ctx=canvas.getContext('2d');
+ if(!ctx)throw Error('描画機能が利用できません。');
+ const left=85,right=1155,bottom=1610;let y=0,page=0;
+ function start(){ctx.fillStyle='#fff';ctx.fillRect(0,0,1240,1754);ctx.fillStyle='#13243a';ctx.fillRect(0,0,1240,125);ctx.fillStyle='#fff';ctx.font='bold 31px sans-serif';ctx.fillText('ALTA SYSTEM / NOTAM REPORT',left,65);ctx.font='19px sans-serif';ctx.fillText(demo?'DEMO - 架空データ / 実運航不可':'RESEARCH SNAPSHOT / 実運航不可',left,102);y=180;}
+ function finish(){page++;if(page>150)throw Error('150ページを超えました。選択件数を減らしてください。');ctx.fillStyle='#6c7887';ctx.font='18px sans-serif';ctx.fillText('ALTA SYSTEM · '+page+' / 研究・シミュレーター用',left,1694);if(page>1)doc.addPage();doc.addImage(canvas.toDataURL('image/jpeg',.94),'JPEG',0,0,210,297,undefined,'FAST');}
+ function line(text,size=22,bold=false,color='#263548'){if(y+size+14>bottom){finish();start();}ctx.font=`${bold?'bold ':''}${size}px sans-serif`;ctx.fillStyle=color;ctx.fillText(text,left,y);y+=size+13;}
+ function paragraph(value,size=22,bold=false){ctx.font=`${bold?'bold ':''}${size}px sans-serif`;for(const raw of String(value??'未提供').replace(/\r\n?/g,'\n').split('\n')){let current='';for(const ch of raw){if(ctx.measureText(current+ch).width>right-left){line(current,size,bold);current=ch;ctx.font=`${bold?'bold ':''}${size}px sans-serif`;}else current+=ch;}line(current,size,bold);}}
+ function field(label,value){paragraph(label,18,true);paragraph(value??'未提供');y+=8;}
+ start();paragraph('選択した警報レポート',36,true);paragraph('作成日時（UTC）: '+new Date().toISOString(),18);paragraph(`選択件数: ${records.length} 件 / 座標: WGS84・[経度, 緯度]`,18);paragraph('区域の存在は現在の有効化を意味しません。原文の時刻・高度・運用条件を確認してください。',19);y+=25;
+ for(let i=0;i<records.length;i++){const f=records[i],p=f.properties;if(i){finish();start();}paragraph(`${i+1}. ${p.name||p.id}`,30,true);field('ID / 種別',`${p.id} / ${p.type}`);field('国・地域',`${countryName(p.country)} (${p.country})`);field('機関・出典（提供された表記）',p.source);field('取得成功日時（UTC）',feeds.get(p.country)?.metadata.lastSuccess|| (demo?'架空データ・実API未接続':'未取得'));field('取得状態',demo?'架空データ':feeds.get(p.country)?.metadata.status||'未取得');field('有効期間',`${p.validFrom||'未提供'} ～ ${p.validTo||'未提供'}`);field('高度 / 時間条件',`${p.lower??'未提供'} ～ ${p.upper??'未提供'} / ${p.schedule||p.timeStatus||'未提供'}`);field('Qコード / 境界の精度',`${p.qcode||'未提供'} / ${p.accuracy==='qline-envelope'?'Q行の概略円・正確な境界ではありません':p.accuracy||'未提供'}`);field('詳細テキスト（原文）',p.text||'未提供');paragraph('座標（経度, 緯度）',24,true);
+ if(f.geometry.type==='Point'){field('中心 / 半径',`${f.geometry.coordinates.join(', ')} / ${p.radius_m} m`);}else{const polys=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;for(let j=0;j<polys.length;j++)for(let k=0;k<polys[j].length;k++){paragraph(`Polygon ${j+1} / ${k===0?'外周':'内周 '+k}`,19,true);for(const coord of polys[j][k])paragraph(coord.join(', '),19);}}
+ }
+ finish();doc.save(`alta-system-${demo?'demo-':''}${new Date().toISOString().replace(/[:.]/g,'-')}.pdf`);
+}};
