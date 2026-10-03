@@ -15,6 +15,7 @@ HTTP = build_opener(NoRedirect())
 ROOT = Path(__file__).resolve().parents[1]
 TYPES = {'restricted':'Restricted', 'danger':'Danger', 'prohibited':'Prohibited'}
 KEYWORDS = re.compile(r'\b(RESTRICTED|DANGER|PROHIBITED)\b|制限区域|危険区域|飛行禁止区域', re.I)
+ACTIVITY = re.compile(r'\b(MISSILE(?:S)?|ROCKET(?:S)?|FIRING|GUNFIRE|LIVE[ -]FIRE|MILITARY EXERCISE|GUNNERY)\b|ミサイル|ロケット|射撃|軍事演習', re.I)
 QCODE = re.compile(r'\bQ[A-Z]{4}\b')
 QAREA = re.compile(r'(\d{2})(\d{2})([NS])(\d{3})(\d{2})([EW])(\d{3})\s*$')
 
@@ -98,6 +99,8 @@ def risk(record, prefixes):
     # Prefixes are user filters, NOT a table of official full five-letter Q codes.
     if any(q.removeprefix('Q').startswith(p.removeprefix('Q')) for p in prefixes if p):
         kind=kind or 'Danger';reason.append('configured-q-prefix')
+    if ACTIVITY.search(text):
+        kind=kind or 'Danger';reason.append('activity-keyword-candidate')
     match=KEYWORDS.search(text)
     if match:
         token=match.group().upper()
@@ -169,7 +172,7 @@ def fetch_snapshot(spec, country):
     url=spec['url'].replace('{country}',country)
     if urlsplit(url).scheme!='https':raise ValueError('HTTPS is required')
     origin=urlsplit(url).netloc
-    headers={'Accept':'application/json','User-Agent':'AirspaceAtlas-Research/1.0'}
+    headers={'Accept':'application/json','User-Agent':'Alta-system-Research/1.0'}
     for header,env in spec.get('headers_env',{}).items():
         value=os.environ.get(env)
         if not value:raise ValueError('missing API secret')

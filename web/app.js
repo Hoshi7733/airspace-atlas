@@ -2,6 +2,9 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
+const demoMode=params.get('demo')==='1';
+const dataRoot=demoMode?'demo/':'data/';
+$('#mode-link').href=demoMode?'./':'?demo=1';$('#mode-link').textContent=demoMode?'実データへ':'デモを見る';
 const allowed=new Set((params.get('countries')||'').toUpperCase().split(',').filter(c=>/^[A-Z]{2}$/.test(c)));
 let region=params.get('region')||'all',country=params.get('country')?.toUpperCase()||'all';
 let index=null,feeds=new Map(),visible=[],layers=new Map(),loading=false;
@@ -30,13 +33,13 @@ function render(){
  $('#count').textContent=String(visible.length).padStart(2,'0');$('#areas').replaceChildren(...(rows.length?rows:[node('p','表示対象はありません。国・レイヤー・検索条件をご確認ください。','empty')]));$('#unplotted-count').textContent=`未描画の警報 ${missing.length}件`;$('#unplotted-list').replaceChildren(...missing);
  $('#map-title').textContent=country==='all'?'世界の航空警報':(chosen[0]?.name||country)+'の航空警報';
  const bad=chosen.filter(c=>{const m=feeds.get(c.code)?.metadata;return !m||m.status==='error'||(!m.demo&&(!m.lastSuccess||Date.now()-Date.parse(m.lastSuccess)>3600000))});
- const note=[];if(index?.demo)note.push('デモ：すべて架空の区域です');if(bad.length)note.push('未取得・更新失敗・古いデータ：'+bad.map(c=>c.code).join(', '));if(failures.length)note.push('再読込失敗：'+failures.join(', '));if(!map)note.push('地図ライブラリの読み込みに失敗');if(!chosen.length)note.push('この地域には設定された国がありません');
+ const note=[];if(index?.demo)note.push('デモ：すべて架空の区域です');const pending=chosen.filter(c=>feeds.get(c.code)?.metadata.status==='unconfigured');if(pending.length)note.push('NOTAM API接続待ち：'+pending.map(c=>c.code).join(', ')+' · 接続設定をご確認ください');if(bad.length&&!pending.length)note.push('未取得・更新失敗・古いデータ：'+bad.map(c=>c.code).join(', '));if(failures.length)note.push('再読込失敗：'+failures.join(', '));if(!map)note.push('地図ライブラリの読み込みに失敗');if(!chosen.length)note.push('この地域には設定された国がありません');
  $('#notice').textContent=note.join(' / ')||'取得済みスナップショットを表示 · 有効化条件は警報詳細を確認';$('#notice').classList.toggle('warning',bad.length>0||failures.length>0);
- $('#mode').textContent=index?.demo?'DEMO DATA':'API SNAPSHOT';
+ $('#mode').textContent=index?.demo?'DEMO DATA':chosen.some(c=>feeds.get(c.code)?.metadata.status==='unconfigured')?'NOTAM 未接続':'NOTAM SNAPSHOT';
  $('#updated').textContent=index?.demo?'デモ・実API未接続':chosen.map(c=>c.code+': '+time(feeds.get(c.code)?.metadata.lastSuccess)).join(' / ');
 }
 async function json(url){const r=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(25000)});if(!r.ok)throw Error('HTTP '+r.status);return r.json();}
-async function refresh(){if(loading)return;loading=true;$('#refresh').disabled=true;$('#refresh').textContent='更新中…';try{const next=await json('data/index.json');if(next.schemaVersion!==1||!Array.isArray(next.countries))throw Error('schema');index=next;failures=[];await Promise.all(index.countries.filter(c=>!allowed.size||allowed.has(c.code)).map(async c=>{try{if(!/^[A-Z]{2}$/.test(c.code)||c.file!==c.code+'.json')throw Error('invalid path');const data=await json('data/'+c.file);if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.metadata.country!==c.code||data.metadata.demo!==index.demo)throw Error('invalid snapshot');feeds.set(c.code,data);}catch{failures.push(c.code);if(feeds.get(c.code)?.metadata.demo!==index.demo)feeds.delete(c.code)}}));updateChoices();render();}catch{$('#notice').textContent='データ一覧の更新に失敗しました。前回の表示を保持しています。';$('#notice').classList.add('warning');}finally{loading=false;$('#refresh').disabled=false;$('#refresh').textContent='↻ 今すぐ再読込';}}
+async function refresh(){if(loading)return;loading=true;$('#refresh').disabled=true;$('#refresh').textContent='更新中…';try{const next=await json(dataRoot+'index.json');if(next.schemaVersion!==1||!Array.isArray(next.countries))throw Error('schema');index=next;failures=[];await Promise.all(index.countries.filter(c=>!allowed.size||allowed.has(c.code)).map(async c=>{try{if(!/^[A-Z]{2}$/.test(c.code)||c.file!==c.code+'.json')throw Error('invalid path');const data=await json(dataRoot+c.file);if(data.type!=='FeatureCollection'||!Array.isArray(data.features)||data.metadata.country!==c.code||data.metadata.demo!==index.demo)throw Error('invalid snapshot');feeds.set(c.code,data);}catch{failures.push(c.code);if(feeds.get(c.code)?.metadata.demo!==index.demo)feeds.delete(c.code)}}));updateChoices();render();}catch{$('#notice').textContent='データ一覧の更新に失敗しました。前回の表示を保持しています。';$('#notice').classList.add('warning');}finally{loading=false;$('#refresh').disabled=false;$('#refresh').textContent='↻ 今すぐ再読込';}}
 $('#tabs').onclick=e=>{const b=e.target.closest('button[data-region]');if(!b)return;region=b.dataset.region;updateChoices();render()};$('#country').onchange=e=>{country=e.target.value;syncURL();render()};$('#search').oninput=render;document.querySelectorAll('input[type=checkbox]').forEach(el=>el.onchange=render);$('#refresh').onclick=refresh;$('#fit').onclick=()=>{if(group?.getLayers().length)map.fitBounds(group.getBounds(),{padding:[35,35],maxZoom:8});else map?.setView([25,20],2)};
 if(![...document.querySelectorAll('#tabs button')].some(b=>b.dataset.region===region))region='all';
 refresh();setInterval(refresh,30*60*1000);setInterval(()=>{if(index&&!loading)render()},60*1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});

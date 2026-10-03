@@ -1,96 +1,41 @@
-# AIRSPACE ATLAS
+# ALTA SYSTEM
 
-Python + GitHub Actions + 国別JSON + GitHub Pages + Leaflet 1.9.4 の基本テンプレートです。データベース・常駐バックエンド・npmビルドは不要。日本語のウェブマップと導入ガイドを同梱しています。
+公開URL: https://alta-system.github.io/
 
-**初期状態は架空データです。世界の航空局への実接続は未設定です。実運航用ではありません。**
+- [使い方](https://alta-system.github.io/help.html)
+- [API接続設定](https://alta-system.github.io/guide.html)
+- [架空データのデモ](https://alta-system.github.io/?demo=1)
 
-## できること
+FAA・ICAOのNOTAMに対象を限定しています。NOAA/SIGMET/NOTACは接続しません。
+現在は実APIの利用承認・認証情報・スキーマ確認待ちです。実データ画面は未接続と表示し、架空データはweb/demoに分離します。
+実運航には使用できません。海域上のNOTAMと海上航行警報（NAVAREA等）は別系統で、後者は未接続です。
 
-- JP / KR / US / GB / AU をループ。対象国は設定で追加・削除できます。
-- Restricted / Danger / Prohibited、Qコード、指定キーワードから候補を抽出。
-- Polygon / MultiPolygon（穴を保持）、明示的な円、Q行の概略円を描画。
-- 国別タブではなく「地域タブ＋国選択」の構成。区域名・識別子・本文・Qコードで検索。
-- URLで閲覧対象を指定。ユーザー間で選択状態を共有せず、サーバーに個人設定を保存しません。
-- UTC毎時07分・37分に取得→国別JSONをコミット→同じActionsでPagesを公開。
-- 取得失敗時は前回の正常なスナップショットを保持。最終成功時刻は更新しません。
-- 期限切れと明示的な取消を除外。座標不明は「未描画」に表示。
+## API接続の状態
 
-## まずMacで見る
+scripts/update_live.py がFAA/ICAO公式ドメイン、provider、schema_verifiedを検査し、設定済みの全件JSONを国別に処理します。
+未設定の国はネットワーク呼出しをせず「unconfigured」を出力します。
+FAA専用認証・AIXM・差分処理などのアダプターは、支給される仕様とレスポンスを確認した後に確定します。
+ミサイル・ロケット・射撃・軍事演習の語句は危険候補として抽出します。活動の実施を断定する処理ではありません。
 
-Python 3.10以上を使用します。外部Pythonパッケージは不要です。
+FAA NMS: https://www.faa.gov/about/initiatives/notam/faqs
+API申請窓口: 7-AWA-NAIMES@faa.gov。無料可否、対象範囲、公開JSON保存と再配布の許諾を申請時に確認してください。
+ICAO: https://www.icao.int/api-data-service （公式無料案内は試用25回。永久無料ではありません）
 
-```bash
-cd airspace-pages
-python3 scripts/update_airspace.py --demo
-python3 -m http.server 8000 --directory web
-```
+GitHub SecretsにFAA_API_KEY / ICAO_API_KEYを登録する環境変数配線は準備済みです。
+キーはチャットや公開ファイルに載せず、GitHubのSettings > Secrets and variables > Actionsへ直接登録してください。
+LIVE_DATA変数は不要です。デモと実データを毎回別に生成します。
 
-ブラウザーで http://localhost:8000 を開きます。HTMLの直接ダブルクリックではJSON取得が動きません。Leafletと地図タイルはインターネット接続が必要です。
+## 開発・公開
 
-```text
-http://localhost:8000/?country=JP
-http://localhost:8000/?countries=JP,KR,US,GB,AU
-http://localhost:8000/?countries=JP,KR&region=Asia&country=KR
-```
+python -m unittest discover -s tests -v
+python scripts/update_airspace.py --demo --output web/demo
+python scripts/update_live.py
+python -m http.server 8000 --directory web
 
-`countries`は画面に出す国の集合、`country`は初期選択国、`region`は`Asia / Americas / Europe / Oceania / Africa`です。設定外の国は表示しません。URLは閲覧フィルターでありアクセス制限ではありません。公開JSONは誰でも取得できます。
+PagesのSourceはGitHub Actions。ユーザー名alta-systemとリポジトリ名alta-system.github.ioの組み合わせでルートURLに公開します。
+UTC毎時07分・37分の取得予定。遅延・停止・API利用制限があるため、即時性や無保守での永久稼働は保証しません。
 
-## GitHub Pagesで公開する手順
-
-1. GitHubで公開リポジトリ `airspace-atlas` を作ります。無料での運用を想定するためPublic、デフォルトブランチは`main`。
-2. このフォルダーの**中身**をリポジトリのルートにアップロードします。Macで隠しファイルを表示するにはCommand + Shift + .。`.github/workflows/update-and-deploy.yml`も必ず含めます。ZIPをそのまま置くだけでは動きません。
-3. `Settings → Pages → Build and deployment → Source`を **GitHub Actions** にします。
-4. `Settings → Actions → General`でActionsを有効にし、ワークフローがリポジトリへ書き込めることを確認します。組織ポリシーやmainの保護規則が書込を禁止する場合は、管理者承認や許可された更新方法が必要です。
-5. `Actions → Update airspace and deploy Pages → Run workflow`を実行します。成功するとPagesの設定画面・ActionsのDeployment欄に公開URLが表示されます。
-6. 初期状態はデモです。実API設定が完了したら、下記の`LIVE_DATA=true`を設定して再実行します。
-
-Gitを使用する場合（URLはご自身のリポジトリに置き換えてください）：
-
-```bash
-git init -b main
-git add .
-git commit -m "Add Airspace Atlas template"
-git remote add origin https://github.com/YOUR_ACCOUNT/airspace-atlas.git
-git push -u origin main
-```
-
-GitHubへの認証はGitHub公式の方法で行ってください。APIキーをコミットしないでください。
-
-GitHub PagesのURLは通常 `https://YOUR_ACCOUNT.github.io/airspace-atlas/` です。このテンプレートは相対パスを使用しているため、サブディレクトリでも動きます。
-
-## 実APIを接続する
-
-**国際共通の無料NOTAMポリゴンAPIはこのテンプレートに含まれていません。API URLを想像で埋めることはしていません。** ICAO等はアクセス申請・キー・利用条件の確認が必要です。OpenSkyの航空機位置情報はNOTAM境界の代替ではありません。
-
-各国のAPI仕様から、認証、対象範囲、ページング、全件/差分、時刻、座標系、取消・置換、再配布条件を確認し、`config/sources.json`の各国の`api`を埋めます。取得可能な国だけ残して構いません。
-
-```json
-{
-  "q_prefixes": ["WMR", "WMW", "WXX"],
-  "countries": {
-    "JP": {
-      "name": "日本",
-      "region": "Asia",
-      "source": "契約・利用許諾済みの提供元名",
-      "api": {
-        "url": "https://YOUR-VERIFIED-PROVIDER/airspaces?country={country}",
-        "snapshot_confirmed": true,
-        "records_path": "items",
-        "next_path": "next",
-        "complete_path": "complete",
-        "headers_env": {"X-API-Key": "NOTAM_API_KEY"}
-      }
-    }
-  }
-}
-```
-
-これは**形式の説明用URL**です。実在するAPIのアドレスではありません。各国に別のURL・キー環境変数を設定できます。対象APIがISO国コードを受け付けない場合は、FIR/ICAOコードへの変換を提供元別アダプターに実装してください。APIキーがクエリパラメータで必要な提供元には、その認証方式をアダプターで追加してください。フロントエンドにはキーを渡しません。
-
-GitHubの`Settings → Secrets and variables → Actions`で：
-- Secretsに`NOTAM_API_KEY`を登録。
-- Variablesに`LIVE_DATA` = `true`を登録。
-- 別名のキーを使う場合はワークフローの`env`にもSecretsから渡します。
+## 既存の共通JSON契約と形状処理
 
 ### 想定APIレスポンスとアダプター
 
@@ -142,7 +87,7 @@ NM / KM / Mに対応。1 NM = 1852 m。Leafletの`L.circle`には半径をメー
 - 日付変更線を跨ぐ未分割Polygonは誤描画を避けて「未描画」にします。RFC 7946に従って提供元アダプターでMultiPolygonに分割してください。極域・非常に大きい円はLeafletの投影誤差があるため精密な測地表示ではありません。
 - B/C時刻はISO 8601 UTCへ変換して渡します。未来の区域は「開始前」。D欄の断続スケジュールは表示のみで、稼働判定は未実装です。
 - 明示的なCANCELLED / INACTIVE / notamType=C、`cancels`/`replaces`参照と期限切れを処理します。取消・置換の全履歴解決は提供元の完全スナップショットで保証してください。
-- SIGMET・火山灰警報等も境界と危険分類を正規化して渡せば描けますが、各形式専用パーサーは含みません。
+- 対象はNOTAMのみです。一般気象データの取得処理はありません。
 
 ## データ構造
 
@@ -180,7 +125,7 @@ OSM標準タイルはベストエフォートで容量制限があります。�
 python3 -m unittest discover -s tests -v
 ```
 
-作成時点でPythonの回帰テスト13件とJavaScript構文検査は通過しました。実API、GitHub上でのActions実行・Pages公開、ブラウザーでの視覚・操作確認は未実施です。
+実NOTAM API接続は未検証です。デモのActions・Pages公開と基本操作は確認済みです。
 
 認証不要の静的サイトなので複数ユーザーが同時に閲覧できます。個人アカウント・権限管理・編集保存は含めていません。フロントはビルド不要のJavaScriptにし、React/JSXの依存は外しています。Leafletは標準で平面地図であり、3D地球儀はこの構成に含みません。
 
