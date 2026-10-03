@@ -1,0 +1,90 @@
+{
+  "items": [
+    {
+      "id": "DEMO-AU-R01",
+      "name": "制限区域サンプル",
+      "type": "Restricted",
+      "text": "架空のシミュレーター用制限区域です。",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              133,
+              -25
+            ],
+            [
+              135,
+              -24.8
+            ],
+            [
+              134.7,
+              -23.6
+            ],
+            [
+              133.2,
+              -24
+            ],
+            [
+              133,
+              -25
+            ]
+          ]
+        ]
+      },
+      "lower": "SFC",
+      "upper": "FL150"
+    },
+    {
+      "id": "DEMO-AU-D02",
+      "name": "危険区域サンプル",
+      "type": "Danger",
+      "text": "架空の円形区域です。半径25 NM。",
+      "circle": {
+        "center": [
+          137,
+          -26
+        ],
+        "radius": 25,
+        "unit": "NM"
+      },
+      "lower": "SFC",
+      "upper": "UNL"
+    },
+    {
+      "id": "DEMO-AU-P03",
+      "name": "飛行禁止区域サンプル",
+      "type": "Prohibited",
+      "text": "架空の禁止区域です。",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              131,
+              -23
+            ],
+            [
+              132.5,
+              -23
+            ],
+            [
+              132,
+              -22
+            ],
+            [
+              131,
+              -23
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "id": "DEMO-AU-U04",
+      "name": "境界未提供サンプル",
+      "type": "Danger",
+      "text": "危険区域ですが境界情報がないため描画しません。"
+    }
+  ]
+}

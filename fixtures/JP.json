@@ -1,0 +1,97 @@
+{
+  "items": [
+    {
+      "id": "DEMO-JP-R01",
+      "name": "制限区域サンプル",
+      "type": "Restricted",
+      "text": "架空のシミュレーター用制限区域です。",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              138,
+              34
+            ],
+            [
+              140,
+              34.2
+            ],
+            [
+              139.7,
+              35.4
+            ],
+            [
+              138.2,
+              35
+            ],
+            [
+              138,
+              34
+            ]
+          ]
+        ]
+      },
+      "lower": "SFC",
+      "upper": "FL150"
+    },
+    {
+      "id": "DEMO-JP-D02",
+      "name": "危険区域サンプル",
+      "type": "Danger",
+      "text": "架空の円形区域です。半径25 NM。",
+      "circle": {
+        "center": [
+          142,
+          33
+        ],
+        "radius": 25,
+        "unit": "NM"
+      },
+      "lower": "SFC",
+      "upper": "UNL"
+    },
+    {
+      "id": "DEMO-JP-P03",
+      "name": "飛行禁止区域サンプル",
+      "type": "Prohibited",
+      "text": "架空の禁止区域です。",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              136,
+              36
+            ],
+            [
+              137.5,
+              36
+            ],
+            [
+              137,
+              37
+            ],
+            [
+              136,
+              36
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "id": "DEMO-JP-U04",
+      "name": "境界未提供サンプル",
+      "type": "Danger",
+      "text": "危険区域ですが境界情報がないため描画しません。"
+    },
+    {
+      "id": "DEMO-JP-Q05",
+      "name": "Q行の概略範囲サンプル",
+      "qcode": "QWXXW",
+      "qline": "RJTT/QWXXW/IV/BO/W/000/999/3100N14200E050",
+      "text": "架空のQ行です。実際の境界を表しません。"
+    }
+  ]
+}
