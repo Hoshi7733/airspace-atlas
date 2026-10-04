@@ -32,7 +32,7 @@ class PublishTests(unittest.TestCase):
   p=m.build(payload(f),REFS,NOW)[0]['JP'][0];self.assertEqual(p['properties']['timeStatus'],'invalid-time')
  def test_failure_preserves_snapshot_and_throttles(self):
   with tempfile.TemporaryDirectory() as d:
-   index={'environment':'staging','lastAttempt':'2026-10-01T00:00:00Z','lastSuccess':'2026-10-01T00:00:00Z','countries':[]}
+   index={'environment':'production','lastAttempt':'2026-10-01T00:00:00Z','lastSuccess':'2026-10-01T00:00:00Z','countries':[]}
    Path(d,'index.json').write_text(json.dumps(index));Path(d,'JP.json').write_text('unchanged')
    with patch.object(m,'authenticate',side_effect=m.SafeFailure('http_429')) as auth:
     self.assertEqual(m.publish(d),1);self.assertEqual(Path(d,'JP.json').read_text(),'unchanged')
@@ -40,4 +40,4 @@ class PublishTests(unittest.TestCase):
     m.publish(d);self.assertEqual(auth.call_count,1)
  def test_publish_success(self):
   with tempfile.TemporaryDirectory() as d,patch.object(m,'authenticate',return_value='not-a-real-token'),patch.object(m,'request_json',return_value=payload(feature())),patch.object(m,'reference_tables',return_value=REFS),patch.object(m,'utcnow',return_value=NOW.isoformat()):
-   self.assertEqual(m.publish(d),0);self.assertEqual(json.loads(Path(d,'JP.json').read_text())['metadata']['environment'],'staging')
+   self.assertEqual(m.publish(d),0);self.assertEqual(json.loads(Path(d,'JP.json').read_text())['metadata']['environment'],'production')

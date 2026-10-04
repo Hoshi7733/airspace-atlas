@@ -1,10 +1,10 @@
 # ALTA SYSTEM
 
-FAA NMS **staging/test environment**, not operational aviation data.
+FAA NMS **production endpoint**, for research and flight simulation. A successful fetch is required before production data appears.
 
 - Site: https://alta-system.github.io/
 - User guide: https://alta-system.github.io/help.html
-- Default feed: `web/staging/index.json` and country JSON files.
+- Default feed: `web/production/index.json` and country JSON files.
 - Fictional demo: `?demo=1`, isolated under `web/demo`.
 
 ## Data flow
@@ -12,10 +12,10 @@ GitHub Actions (`7,37 * * * *`) → Python → country snapshots → GitHub Page
 Browser refreshes published JSON only. Manual refresh resets its 30-minute timer; it never calls FAA or dispatches workflows.
 Actions obtains OAuth credentials from Secrets `FAA_CLIENT_ID` and `FAA_CLIENT_SECRET`. Values and bearer tokens are never written to snapshots or logs.
 
-`publish_faa.py` uses the supplied NMS-API 1.0.18 specification and onboarding cURL examples. It performs one authentication request and one `feature=AIRSPACE` GeoJSON request against staging. No automatic retry or redirects. A persisted last-attempt timestamp enforces a 30-minute cooldown on repeated publication runs, including failures. A manually run independent connection-test workflow is separate and is not scheduled.
+`publish_faa.py` uses the supplied NMS-API 1.0.18 specification and onboarding cURL examples. It performs one authentication request and one `feature=AIRSPACE` GeoJSON request against production. No automatic retry or redirects. A persisted last-attempt timestamp enforces a 30-minute cooldown on repeated publication runs, including failures. A manually run independent connection-test workflow is separate and is not scheduled.
 
 ## Meaning and limits
-- Staging is not production; no claim of live operational NOTAM coverage.
+- Production credentials/access approval may differ from staging. HTTP 401/403 is shown as an error; test data is never relabeled as production. Endpoint selection alone does not guarantee polygon availability.
 - 250 country/territory options plus an unassigned group. Only data actually supplied by this query appears.
 - Country means the reference location’s country via an exact code lookup in OurAirports; not polygon containment, sovereignty, or comprehensive FIR coverage.
 - Full query responses replace prior snapshots, removing absent, canceled and expired records. On fetch/schema failure previous snapshots remain with error status.
@@ -33,3 +33,9 @@ Actions obtains OAuth credentials from Secrets `FAA_CLIENT_ID` and `FAA_CLIENT_S
 `web/countries.json`: derived from mledoze/countries, ODbL 1.0, with license in `web/countries-LICENSE.txt`.
 `config/airport-countries.json.gz.b64`: compressed exact-code country reference derived from https://ourairports.com/data/ (public domain, no accuracy warranty), snapshot 2026-10-04. No runtime reference-data service requests are required.
 Leaflet: BSD-2-Clause. jsPDF: MIT. Basemap: OpenStreetMap attribution remains visible.
+
+Production API base: `https://api-nms.aim.faa.gov/nmsapi`
+
+OAuth endpoint: `https://api-nms.aim.faa.gov/v1/auth/token`
+
+Staging smoke tests remain explicitly named and separate from the production schedule.

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""FAA NMS staging AIRSPACE snapshots. Secrets and bearer tokens stay in memory.
+"""FAA NMS production AIRSPACE snapshots. Secrets and bearer tokens stay in memory.
 Full filtered snapshot replaces prior data only after schema validation. Two HTTP
-requests per fetch; no automatic retry. Never treats the staging feed as production.
+requests per fetch; no automatic retry. Never falls back to staging data.
 """
 import argparse, base64, gzip, hashlib, json, re
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from faa_staging_test import authenticate, request_json, SafeFailure
+from faa_client import authenticate, request_json, SafeFailure
 from update_airspace import ROOT, risk, normalize, polygon_geometry, position, date, utcnow, write_json
 
-SOURCE='FAA NMS — STAGING / テスト環境'
+SOURCE='FAA NMS — PRODUCTION / 本番環境'
 PREFIXES=['WMR','WMW','WXX']
 
 def reference_tables():
@@ -84,7 +84,7 @@ def candidate(feature,refs,now):
     result,missing=normalize(record,country,SOURCE,PREFIXES,now)
     if result is None and missing is None:return None,'inactive'
     props=result['properties'] if result else missing
-    props.update(environment='staging',countryBasis=basis,matches=reasons,
+    props.update(environment='production',countryBasis=basis,matches=reasons,
         location=text(n.get('location')),icaoLocation=text(n.get('icaoLocation')),classification=text(n.get('classification')),
         issued=text(n.get('issued')),lastUpdated=text(n.get('lastUpdated')),originalText=original,
         qline=qline,referencePoints=points,reportedCoordinates=text(n.get('coordinates')),
@@ -125,49 +125,52 @@ def publish(output, fetch=True):
     index_path=output/'index.json'
     old=json.loads(index_path.read_text()) if index_path.exists() else {}
     # Share the same last-attempt timestamp with smoke tests; do not retry on UI/code pushes.
-    if old.get('environment')=='staging' and old.get('lastAttempt'):
+    if old.get('environment')=='production' and old.get('lastAttempt'):
         elapsed=(date(stamp)-date(old['lastAttempt'])).total_seconds()
         if 0<=elapsed<1800:
-            print('FAA_STAGING_COOLDOWN: reused prior snapshot; no HTTP request')
+            print('FAA_PRODUCTION_COOLDOWN: reused prior snapshot; no HTTP request')
             return int(old.get('status')=='error')
     catalog={c['code']:c for c in json.loads((ROOT/'web/countries.json').read_text())['countries']}
     catalog['ZZ']={'code':'ZZ','name':'国未特定','region':'Other','center':[0,0]}
+    phase="authentication"
     try:
         token=authenticate()
+        phase="notams"
         payload=request_json('/nmsapi/v1/notams?feature=AIRSPACE',{'Authorization':'Bearer '+token,'nmsResponseFormat':'GEOJSON','Accept':'application/json'})
         del token
+        phase="validation"
         groups,stats=build(payload,reference_tables(),date(stamp))
         # Reuse country slots from previous snapshots so removals become explicit empty feeds.
         codes=set(groups)|{c['code'] for c in old.get('countries',[]) if c.get('code') in catalog}
         generation=hashlib.sha256((stamp+json.dumps(stats)).encode()).hexdigest()[:20]
-        index={'schemaVersion':1,'demo':False,'environment':'staging','source':SOURCE,'status':'ok',
+        index={'schemaVersion':1,'demo':False,'environment':'production','source':SOURCE,'status':'ok',
             'generatedAt':stamp,'lastAttempt':stamp,'lastSuccess':stamp,'generation':generation,
-            'scope':'FAA staging / feature=AIRSPACE; country coverage is not guaranteed',
+            'scope':'FAA production / feature=AIRSPACE; country coverage is not guaranteed',
             'stats':stats,'countries':[]}
+        if not codes.issubset(catalog):raise SafeFailure('unknown_country_code')
         for code in sorted(codes):
-            if code not in catalog:raise SafeFailure('unknown_country_code')
             records=sorted(groups.get(code,[]),key=lambda f:f['id'])
             features=[r for r in records if r['geometry']]
             unplotted=[dict(r['properties'],featureId=r['id']) for r in records if not r['geometry']]
-            metadata={'country':code,'demo':False,'environment':'staging','status':'ok','source':SOURCE,
+            metadata={'country':code,'demo':False,'environment':'production','status':'ok','source':SOURCE,
                 'lastAttempt':stamp,'lastSuccess':stamp,'generation':generation}
             content={'type':'FeatureCollection','features':features,'unplotted':unplotted,'metadata':metadata}
             write_json(output/(code+'.json'),content)
             index['countries'].append({'code':code,'name':catalog[code]['name'],'region':catalog[code]['region'],
                 'file':code+'.json','count':len(features),'unplotted':len(unplotted),**metadata})
         write_json(index_path,index)
-        print('FAA_STAGING_PUBLISHED='+json.dumps(stats,sort_keys=True))
+        print('FAA_PRODUCTION_PUBLISHED='+json.dumps(stats,sort_keys=True))
         return 0
     except Exception as error:
         # Error strings/body/headers can contain tokens: emit only controlled categories.
         category=str(error) if isinstance(error,SafeFailure) and re.fullmatch('[a-z0-9_]+',str(error)) else 'validation_or_configuration_error'
-        index=old if old.get('environment')=='staging' else {'schemaVersion':1,'demo':False,'countries':[],'lastSuccess':None}
-        index.update(environment='staging',source=SOURCE,status='error',lastAttempt=stamp,generatedAt=stamp,error=category)
+        index=old if old.get('environment')=='production' else {'schemaVersion':1,'demo':False,'countries':[],'lastSuccess':None}
+        index.update(environment='production',source=SOURCE,status='error',lastAttempt=stamp,generatedAt=stamp,error=category,failurePhase=phase)
         write_json(index_path,index)
-        print('FAA_STAGING_FAILED='+category+'; previous snapshot retained')
+        print('FAA_PRODUCTION_FAILED='+category+'; previous snapshot retained')
         return 1
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--output',default=str(ROOT/'web/staging'));parser.add_argument('--report',default='')
+    parser=argparse.ArgumentParser();parser.add_argument('--output',default=str(ROOT/'web/production'));parser.add_argument('--report',default='')
     args=parser.parse_args();errors=publish(args.output)
     if args.report:Path(args.report).write_text(str(errors))
