@@ -5,3 +5,5 @@
 .pdf-save{display:inline-block;color:#bbd8ff;text-decoration:underline;padding:8px}
 
 .sync-panel{position:absolute;right:16px;top:88px;z-index:500;background:rgba(12,22,39,.95);border:1px solid #34465c;border-radius:10px;padding:12px 16px;color:#e2e8f0;font-size:12px;line-height:1.8;box-shadow:0 6px 24px #0004;pointer-events:none}.sync-panel strong{display:block;font-size:11px;color:#94a3b8;letter-spacing:.06em}.sync-panel time,.sync-panel #sync-countdown{font-variant-numeric:tabular-nums;color:#fff}.sync-panel small{color:#94a3b8}.sync-panel #sync-result{color:#6ee7b7}.sync-panel[data-state="error"] #sync-result,.sync-panel[data-state="partial"] #sync-result{color:#fbbf24}@media(max-width:650px){.sync-panel{top:80px;right:10px;padding:8px 10px;font-size:11px}}
+
+.feed-summary{margin:0;padding:12px 24px;color:#9bafc5;font-size:11px;line-height:1.8;border-bottom:1px solid #27364b}.unplotted-item{padding:10px;border-bottom:1px solid #27364b}.unplotted-item summary{cursor:pointer}.unplotted-item .popup{color:#d4dce6}.map-legend{flex-wrap:wrap;max-width:65%}
