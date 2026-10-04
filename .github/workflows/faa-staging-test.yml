@@ -1,0 +1,29 @@
+name: FAA staging connection test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/faa-staging-test.yml']
+permissions:
+  contents: read
+concurrency:
+  group: faa-staging-test
+  cancel-in-progress: false
+jobs:
+  connection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test parser without credentials
+        run: python -m unittest discover -s tests -v
+      - name: Authenticate once and request AIRSPACE NOTAMs once
+        env:
+          FAA_CLIENT_ID: ${{ secrets.FAA_CLIENT_ID }}
+          FAA_CLIENT_SECRET: ${{ secrets.FAA_CLIENT_SECRET }}
+        run: python scripts/faa_staging_test.py
