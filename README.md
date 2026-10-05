@@ -8,7 +8,7 @@ FAA NMS **production endpoint**, for research and flight simulation. A successfu
 - Fictional demo: `?demo=1`, isolated under `web/demo`.
 
 ## Data flow
-GitHub Actions (`7,37 * * * *`) → Python → country snapshots → GitHub Pages → Leaflet.
+GitHub Actions (`7,37 * * * *`) → Python → country snapshots → static hosting → Leaflet.
 Browser refreshes published JSON only. Manual refresh resets its 30-minute timer; it never calls FAA or dispatches workflows.
 Actions obtains OAuth credentials from Secrets `FAA_CLIENT_ID` and `FAA_CLIENT_SECRET`. Values and bearer tokens are never written to snapshots or logs.
 
@@ -34,6 +34,20 @@ Region tabs add that region's countries to the selection; all regions selects al
 ## Development
 `python -m unittest discover -s tests -v`
 `node tests/test_refresh.cjs`
+
+## Cloudflare Pages deployment
+The workflow supports Cloudflare **Direct Upload** using `cloudflare/wrangler-action@v4`.
+It publishes the complete `web/` directory, including production JSON, after each scheduled update. Browser data requests stay on the site's own origin; users do not need access to GitHub to fetch the JSON. FAA calls still happen only in the backend workflow. No database, Worker function or paid domain is required. GitHub Pages remains available during migration.
+
+To enable deployment, add these repository Secrets (never paste values into chat or code):
+- `CLOUDFLARE_ACCOUNT_ID`: your Cloudflare account ID.
+- `CLOUDFLARE_API_TOKEN`: a token scoped to that account with Account → Cloudflare Pages → Edit permission.
+
+The next workflow run creates a Direct Upload project named `alta-system` if absent and deploys branch `main`. The final `pages.dev` URL is confirmed by the deployment; name availability is not guaranteed. Until both Secrets exist, the workflow explicitly reports Cloudflare deployment as pending and keeps the existing site working. Existing projects must use `main` as their production branch. Do not connect a second Git integration: direct uploading prebuilt assets avoids rebuilding on every JSON commit.
+
+This does not promise unlimited free service forever. Provider quotas, terms, outages and scheduled-run delays apply. The viewer still uses OpenStreetMap tiles and the Leaflet/jsPDF CDNs, which must be reachable on the viewer's network.
+
+Official setup reference: https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/
 
 ## Reference data and licenses
 `web/countries.json`: derived from mledoze/countries, ODbL 1.0, with license in `web/countries-LICENSE.txt`.

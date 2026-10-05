@@ -1,4 +1,4 @@
-name: Update airspace and deploy Pages
+name: Update airspace and deploy websites
 on:
   schedule:
     - cron: '7,37 * * * *'
@@ -59,6 +59,32 @@ jobs:
       - name: Deploy website
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Check Cloudflare configuration
+        id: cloudflare_config
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          if [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Cloudflare deployment pending: add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN to repository Secrets.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Prepare Cloudflare Direct Upload project
+        if: steps.cloudflare_config.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python scripts/prepare_cloudflare.py
+      - name: Publish website and current JSON to Cloudflare Pages
+        if: steps.cloudflare_config.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web --project-name=alta-system --branch=main
       - name: Report partial source failures after publishing stale status
         shell: bash
         run: |
@@ -67,4 +93,3 @@ jobs:
             echo "::error::$count country source(s) failed; previous valid data and failure status were published."
             exit 1
           fi
-

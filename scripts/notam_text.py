@@ -30,6 +30,7 @@ def extract(value):
     # One unambiguous centre and one radius with an explicit unit.
     radius=re.search(r'\b(?:WI|WITHIN)\s+(\d+(?:\.\d+)?)\s*(NM|N M|KM|METERS?|M)\s+(?:RADIUS\s+)?(?:OF|CENT(?:ER|RE)(?:D)?\s+(?:ON|AT))\s*',text)
     if not radius:radius=re.search(r'\b(?:RADIUS\s+(?:OF\s+)?)(\d+(?:\.\d+)?)\s*(NM|N M|KM|METERS?|M)\b',text)
+    if not radius:radius=re.search(r'\b(\d+(?:\.\d+)?)\s*(NM|N M|KM|METERS?|M)\s+RADIUS\s+(?:OF|CENT(?:ER|RE)(?:D)?\s+(?:ON|AT))',text)
     if radius and len(points)==1 and 0<float(radius[1])<=1000:
         unit=radius[2].replace(' ','');unit='M' if unit.startswith('METER') else unit
         return {'circle':{'center':points[0],'radius':float(radius[1]),'unit':unit}},None
@@ -41,6 +42,7 @@ def extract(value):
         if points[-1]!=points[0]:points.append(points[0])
         try:
             g=polygon_geometry({'type':'Polygon','coordinates':[points]})
+            if abs(sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(points,points[1:])))<1e-12:raise ValueError('zero area')
             # Reject self-crossings instead of creating a misleading boundary.
             def cross(a,b,c):return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])
             edges=list(zip(points,points[1:]))

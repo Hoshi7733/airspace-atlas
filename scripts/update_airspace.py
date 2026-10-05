@@ -15,7 +15,7 @@ HTTP = build_opener(NoRedirect())
 ROOT = Path(__file__).resolve().parents[1]
 TYPES = {'restricted':'Restricted', 'danger':'Danger', 'prohibited':'Prohibited'}
 KEYWORDS = re.compile(r'\b(RESTRICTED|DANGER|PROHIBITED)\b|制限区域|危険区域|飛行禁止区域', re.I)
-ACTIVITY = re.compile(r'\b(MISSILE(?:S)?|ROCKET(?:S)?|FIRING|GUNFIRE|LIVE[ -]FIRE|MILITARY EXERCISE|GUNNERY)\b|ミサイル|ロケット|射撃|軍事演習', re.I)
+ACTIVITY = re.compile(r'\b(MISSILE(?:S)?|ROCKET(?:S)?|FIRING|GUNFIRE|LIVE[ -]FIRE|MILITARY EXERCISE|EXERCISES?|EXER|GUNNERY)\b|ミサイル|ロケット|射撃|軍事演習', re.I)
 QCODE = re.compile(r'\bQ[A-Z]{4}\b')
 QAREA = re.compile(r'(\d{2})(\d{2})([NS])(\d{3})(\d{2})([EW])(\d{3})\s*$')
 
