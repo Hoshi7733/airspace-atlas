@@ -124,10 +124,14 @@ def publish(output, fetch=True):
     output=Path(output);output.mkdir(parents=True,exist_ok=True);stamp=utcnow()
     index_path=output/'index.json'
     old=json.loads(index_path.read_text()) if index_path.exists() else {}
-    # Share the same last-attempt timestamp with smoke tests; do not retry on UI/code pushes.
+    # Never repeat a data pull within 30 minutes. A failed authentication made no
+    # data request; allow an operator rerun after credential replacement, with a
+    # three-minute floor. The normal schedule remains every 30 minutes.
     if old.get('environment')=='production' and old.get('lastAttempt'):
         elapsed=(date(stamp)-date(old['lastAttempt'])).total_seconds()
-        if 0<=elapsed<1800:
+        auth_rejected=old.get('failurePhase')=='authentication' and old.get('error') in ('http_401','http_403') and old.get('status')=='error'
+        minimum_interval=180 if auth_rejected else 1800
+        if 0<=elapsed<minimum_interval:
             print('FAA_PRODUCTION_COOLDOWN: reused prior snapshot; no HTTP request')
             return int(old.get('status')=='error')
     catalog={c['code']:c for c in json.loads((ROOT/'web/countries.json').read_text())['countries']}
