@@ -12,13 +12,19 @@ GitHub Actions (`7,37 * * * *`) → Python → country snapshots → GitHub Page
 Browser refreshes published JSON only. Manual refresh resets its 30-minute timer; it never calls FAA or dispatches workflows.
 Actions obtains OAuth credentials from Secrets `FAA_CLIENT_ID` and `FAA_CLIENT_SECRET`. Values and bearer tokens are never written to snapshots or logs.
 
-`publish_faa.py` uses the supplied NMS-API 1.0.18 specification and onboarding cURL examples. It performs one authentication request and one `feature=AIRSPACE` GeoJSON request against production. No automatic retry or redirects. A persisted last-attempt timestamp enforces a 30-minute cooldown on repeated publication runs, including failures. A manually run independent connection-test workflow is separate and is not scheduled.
+`sync_global.py` retrieves INTERNATIONAL, DOMESTIC, FDC, MILITARY and LOCAL_MILITARY baselines at most once per classification per 24 hours. Requests are spaced by at least 181 seconds. Initial synchronization takes about 15 minutes. Between baselines the 30-minute workflow uses `lastUpdatedDate` to merge additions, changes, cancellations and loss of risk status, preserving unchanged records. FAA’s 24-hour delta window is checked; gaps remain explicitly marked until complete rebaseline.
+
+Only normalized candidate records and checkpoints are persisted under `state/`; raw responses and temporary content URLs are never stored. Download links must be the documented relative FAA content endpoint; cross-origin redirects are refused. Compressed content and response size are bounded. Interrupted/partial baseline coverage is visible. This covers the records FAA supplies, not a guarantee of all world notices.
+
+Country mapping uses exact airport codes, unambiguous two-letter prefixes in the reference dataset (explicitly marked as inferred), or the FAA domestic issuing classification. Unresolved locations remain unassigned. Text geometry supports only explicit one-centre circles with units and simple straight-line coordinate chains. Complex arcs, borders, exclusions and ambiguous chains stay flagged.
+
+Region tabs add that region's countries to the selection; all regions selects all countries and unassigned records. Existing cross-region selections are preserved. Future-start notices are hidden by default with an opt-in checkbox. Daily operating schedules still require original-text review.
 
 ## Meaning and limits
 - Production credentials/access approval may differ from staging. HTTP 401/403 is shown as an error; test data is never relabeled as production. Endpoint selection alone does not guarantee polygon availability.
 - 250 country/territory options plus an unassigned group. Only data actually supplied by this query appears.
 - Country means the reference location’s country via an exact code lookup in OurAirports; not polygon containment, sovereignty, or comprehensive FIR coverage.
-- Full query responses replace prior snapshots, removing absent, canceled and expired records. On fetch/schema failure previous snapshots remain with error status.
+- Classification baselines replace that classification. Deltas preserve unchanged records and remove canceled, expired or no-longer-matching items. Failures preserve acquired data with an error/coverage status.
 - Provider polygons are validated, Q-line envelopes are dashed approximate circles, bare provider points are pixel markers with **unknown boundary**. A point does not become an invented area.
 - Missing geometry is retained for text review and PDF export. Daily schedules are not evaluated automatically. Invalid times are flagged.
 - Open client-side jsPDF reports are A4 raster pages; Japanese text is rendered with the device font. Print from your PDF viewer. Downloads may require the visible save link.

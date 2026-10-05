@@ -3,6 +3,10 @@ Two requests maximum; no retries, redirects, persistent tokens or raw response l
 """
 import base64
 import json
+import gzip
+import io
+import zipfile
+import re
 import sys
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener, HTTPRedirectHandler
@@ -20,13 +24,24 @@ class SafeFailure(Exception):
     pass
 
 def request_json(path, headers, data=None, limit=LIMIT):
+    if not re.fullmatch(r'/[A-Za-z0-9_/?=&%.:+\-]+',path) or path.startswith('//') or '..' in path:raise SafeFailure('unsafe_path')
     request = Request(HOST + path, headers=headers, data=data)
     try:
         with build_opener(NoRedirect()).open(request, timeout=45) as response:
             raw = response.read(limit + 1)
             if len(raw) > limit:
                 raise SafeFailure('response_size_limit')
+            if raw[:2]==b'\x1f\x8b':
+                with gzip.GzipFile(fileobj=io.BytesIO(raw)) as stream:raw=stream.read(limit+1)
+            elif raw[:2]==b'PK':
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                    members=[m for m in archive.infolist() if not m.is_dir()]
+                    if len(members)!=1 or members[0].file_size>limit:raise SafeFailure('archive_size_or_members')
+                    with archive.open(members[0]) as stream:raw=stream.read(limit+1)
+            if len(raw)>limit:raise SafeFailure('response_size_limit')
             result = json.loads(raw)
+            if isinstance(result,list):result={'status':'Success','data':{'geojson':result}}
+            elif isinstance(result,dict) and result.get('type')=='FeatureCollection':result={'status':'Success','data':{'geojson':result['features']}}
             if not isinstance(result, dict):
                 raise SafeFailure('unexpected_json')
             return result

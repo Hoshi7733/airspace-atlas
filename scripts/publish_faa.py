@@ -5,6 +5,7 @@ requests per fetch; no automatic retry. Never falls back to staging data.
 """
 import argparse, base64, gzip, hashlib, json, re
 from collections import defaultdict
+from notam_text import extract
 from datetime import datetime, timezone
 from pathlib import Path
 from faa_client import authenticate, request_json, SafeFailure
@@ -15,7 +16,11 @@ PREFIXES=['WMR','WMW','WXX']
 
 def reference_tables():
     path=ROOT/'config/airport-countries.json.gz.b64'
-    return json.loads(gzip.decompress(base64.b64decode(path.read_text())))
+    refs=json.loads(gzip.decompress(base64.b64decode(path.read_text())))
+    prefixes=defaultdict(set)
+    for code,country in refs['icao'].items():prefixes[code[:2]].add(country)
+    refs['prefixes']={k:next(iter(v)) for k,v in prefixes.items() if len(v)==1}
+    return refs
 
 def country_for(n, refs):
     # Country of the referenced location, not a claim about national airspace.
@@ -26,6 +31,12 @@ def country_for(n, refs):
     location=str(n.get('location') or '').upper().strip()
     if str(n.get('classification') or '').upper() in ('DOM','DOMESTIC','FDC','LMIL','LOCAL_MILITARY') and location in refs['faaLocal']:
         return refs['faaLocal'][location], '参照地点のFAAローカルコード（OurAirports照合）'
+    for key in ('icaoLocation','location','affectedFir'):
+        value=str(n.get(key) or '').upper().strip()
+        if re.fullmatch('[A-Z]{4}',value) and value[:2] in refs.get('prefixes',{}):
+            return refs['prefixes'][value[:2]], 'ICAO接頭辞から推定（OurAirportsの単一国対応・領域帰属ではありません）'
+    if str(n.get('classification') or '').upper() in ('FDC','DOM','DOMESTIC','LMIL','LOCAL_MILITARY'):
+        return 'US','FAA国内発行分類（区域の領域帰属ではありません）'
     return 'ZZ','国を確定できる所在地コードなし'
 
 def text(value):
@@ -45,7 +56,7 @@ def candidate(feature,refs,now):
     translated='\n\n'.join(text(t.get('formattedText') or t.get('simpleText')) for t in translations if isinstance(t,dict))
     qmatch=re.search(r'(?:^|\n)\s*Q\)\s*([^\r\n]+)',translated)
     qline=qmatch.group(1).strip() if qmatch else ''
-    kind,q,reasons=risk({'qcode':n.get('selectionCode'),'text':original,'qline':qline},PREFIXES)
+    kind,q,reasons=risk({'qcode':n.get('selectionCode'),'text':original+'\n'+translated,'qline':qline},PREFIXES)
     if not kind:return None,'nonrisk'
     country,basis=country_for(n,refs)
     identifier=text(n.get('id'))
@@ -81,9 +92,16 @@ def candidate(feature,refs,now):
         else:invalid=True
     if polygons and not invalid:
         record['geometry']={'type':'MultiPolygon','coordinates':polygons}
+    text_geometry,text_warning=extract(original)
+    if not text_geometry and not text_warning:text_geometry,text_warning=extract(translated)
+    parsed_text=False
+    if not record.get('geometry') and text_geometry:
+        record.update(text_geometry);parsed_text=True
     result,missing=normalize(record,country,SOURCE,PREFIXES,now)
     if result is None and missing is None:return None,'inactive'
     props=result['properties'] if result else missing
+    if parsed_text:props['accuracy']='text-boundary' if 'geometry' in text_geometry else 'text-circle'
+    if text_warning:props['textGeometryWarning']=text_warning
     props.update(environment='production',countryBasis=basis,matches=reasons,
         location=text(n.get('location')),icaoLocation=text(n.get('icaoLocation')),classification=text(n.get('classification')),
         issued=text(n.get('issued')),lastUpdated=text(n.get('lastUpdated')),originalText=original,
