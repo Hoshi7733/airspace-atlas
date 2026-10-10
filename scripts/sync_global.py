@@ -103,10 +103,10 @@ def sync(state_path,output):
     if state.get('coverageGap'):state.setdefault('gapSince',state['lastAttempt'])
     write_json(state_path,state)
     refs=reference_tables()
-    last_call=0
+    last_call=None
     def pull(path):
         nonlocal last_call
-        wait=181-(time.monotonic()-last_call)
+        wait=0 if last_call is None else 181-(time.monotonic()-last_call)
         if wait>0:time.sleep(wait)
         token=authenticate()
         last_call=time.monotonic()
