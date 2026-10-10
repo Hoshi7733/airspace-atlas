@@ -20,7 +20,7 @@ const map=typeof L!=='undefined'?L.map('map',{worldCopyJump:false,zoomControl:fa
 let group=null;
 if(map){L.control.zoom({position:'bottomright'}).addTo(map);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);group=L.featureGroup().addTo(map);}
 $('#mode-link').href=demoMode?'./':'?demo=1';$('#mode-link').textContent=demoMode?'FAA本番データへ':'架空デモを見る';
-function syncURL(){const p=new URLSearchParams(location.search);p.delete('country');p.set('countries',[...selectedCountries].sort().join(','));region==='all'?p.delete('region'):p.set('region',region);history.replaceState(null,'',location.pathname+'?'+p.toString());}
+function syncURL(){const p=new URLSearchParams(location.search);p.delete('country');p.set('countries',[...selectedCountries].sort().join(','));p.set('region',region);history.replaceState(null,'',location.pathname+'?'+p.toString());}
 function allFeatures(){const m=new Map();for(const data of feeds.values()){
  for(const f of data.features||[])if(!expired(f.properties))m.set(f.id,f);
  for(const p of data.unplotted||[])if(!expired(p)){const id=p.featureId||p.country+':'+p.id;m.set(id,{type:'Feature',id,geometry:null,properties:p});}
