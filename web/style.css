@@ -20,3 +20,5 @@
 .map-style-control{position:absolute;z-index:700;left:18px;top:153px;display:flex;align-items:center;gap:7px;padding:5px 7px;background:#0a1828ed;border:1px solid #345361;border-radius:5px;font-size:11px}
 .map-style-control select{width:125px;margin:0;padding:5px;font-size:11px}.show-all-hazards{margin:10px 18px;padding:10px;border:1px solid #34736b;border-radius:5px;background:#173c3b;color:#b6f9ee;font-size:11px}
 @media(max-width:650px){.jump-form{width:195px;top:84px}.map-style-control{top:146px}.region-tabs button{padding:8px 10px}}
+
+.source-link{display:inline-block;color:#ffbd6d;text-decoration:underline;padding:8px 0}
