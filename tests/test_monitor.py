@@ -10,6 +10,9 @@ class MonitorTests(unittest.TestCase):
  def test_accept_critical(self):
   for text,q in [('MISSILE FIRING',''),('WEAPON EXERCISE',''),('NATIONAL SECURITY RESTRICTION','QRRCA'),('MILITARY EXERCISE','QWELW'),('AREA ACTIVATED','QWMLW')]:self.assertTrue(classify(text,q))
  def test_q_cancellation(self):self.assertFalse(classify('MISSILE FIRING','QWMCN'))
+ def test_sector_is_not_a_full_circle(self):
+  for text in ['FAN SHAPED AREA WITHIN 10KM RADIUS OF 410403N1412312E BTN 043DEG AND 133DEG','SECTOR WITHIN 5NM OF 350000N1400000E']:
+   shape,warning=extract(text);self.assertIsNone(shape);self.assertTrue(warning)
  def test_dm_rectangle(self):
   x,w=extract('FIRING AREA BOUND BY 22-00.0N 159-00.0W, 23-00.0N 159-00.0W, 23-00.0N 160-00.0W, 22-00.0N 160-00.0W.')
   self.assertEqual(x['geometry']['coordinates'][0][0],[-159,22]);self.assertEqual(len(x['geometry']['coordinates'][0]),5)

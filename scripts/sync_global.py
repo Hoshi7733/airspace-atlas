@@ -79,14 +79,18 @@ def sync(state_path,output):
     state=json.loads(state_path.read_text()) if state_path.exists() else dict(version=1,records={},baselineAttempts={},baselineSuccess={})
     now=date(utcnow())
     # Parser updates can improve saved geometry without any additional FAA call.
-    reparsed=state.get('parserVersion')!='critical-v3'
+    reparsed=state.get('parserVersion')!='critical-v4'
     state['records']={k:f for k,f in state['records'].items() if classify(f['properties'].get('text',''),f['properties'].get('qcode',''))}
-    state['parserVersion']='critical-v3'
+    state['parserVersion']='critical-v4'
     for f in state['records'].values():
         props=f['properties']
         props.update(layer='NOTAM',criticalReasons=classify(props.get('text',''),props.get('qcode','')),altitude=altitude(props.get('text',''),props.get('lower'),props.get('upper'),props.get('qline','')))
-        if props.get('accuracy') not in ('reference-point','qline-envelope',None):continue
+        if props.get('accuracy') not in ('reference-point','qline-envelope','text-circle','text-boundary',None):continue
         shape,warning=extract(props.get('originalText') or props.get('text',''))
+        if not shape and props.get('accuracy') in ('text-circle','text-boundary'):
+            f['geometry']=None;props.pop('radius_m',None);props.pop('accuracy',None)
+            props['unplottedReason']=warning or '本文の境界を確定できません。'
+            props['textGeometryWarning']=props['unplottedReason'];reparsed=True
         if shape and 'circle' in shape:
             c=shape['circle'];f['geometry']={'type':'Point','coordinates':c['center']}
             props.update(radius_m=c['radius']*{'NM':1852,'KM':1000,'M':1}[c['unit']],accuracy='text-circle');reparsed=True
