@@ -6,6 +6,7 @@ requests per fetch; no automatic retry. Never falls back to staging data.
 import argparse, base64, gzip, hashlib, json, re
 from collections import defaultdict
 from notam_text import extract
+from hazard_rules import classify, altitude
 from datetime import datetime, timezone
 from pathlib import Path
 from faa_client import authenticate, request_json, SafeFailure
@@ -57,7 +58,9 @@ def candidate(feature,refs,now):
     qmatch=re.search(r'(?:^|\n)\s*Q\)\s*([^\r\n]+)',translated)
     qline=qmatch.group(1).strip() if qmatch else ''
     kind,q,reasons=risk({'qcode':n.get('selectionCode'),'text':original+'\n'+translated,'qline':qline},PREFIXES)
-    if not kind:return None,'nonrisk'
+    critical=classify(original+'\n'+translated,q)
+    if not critical:return None,'nonrisk'
+    kind=kind or 'Danger'
     country,basis=country_for(n,refs)
     identifier=text(n.get('id'))
     if not identifier:raise SafeFailure('missing_notam_id')
@@ -102,6 +105,7 @@ def candidate(feature,refs,now):
     props=result['properties'] if result else missing
     if parsed_text:props['accuracy']='text-boundary' if 'geometry' in text_geometry else 'text-circle'
     if text_warning:props['textGeometryWarning']=text_warning
+    props.update(layer='NOTAM',criticalReasons=critical,altitude=altitude(original+'\n'+translated,record['lower'],record['upper'],qline))
     props.update(environment='production',countryBasis=basis,matches=reasons,
         location=text(n.get('location')),icaoLocation=text(n.get('icaoLocation')),classification=text(n.get('classification')),
         issued=text(n.get('issued')),lastUpdated=text(n.get('lastUpdated')),originalText=original,

@@ -10,6 +10,7 @@ from urllib.parse import quote
 from faa_client import authenticate, request_json, SafeFailure
 from publish_faa import candidate, reference_tables, SOURCE
 from notam_text import extract
+from hazard_rules import classify, altitude
 from update_airspace import ROOT, utcnow, date, write_json
 
 CLASSES=('INTERNATIONAL','DOMESTIC','FDC','MILITARY','LOCAL_MILITARY')
@@ -78,9 +79,12 @@ def sync(state_path,output):
     state=json.loads(state_path.read_text()) if state_path.exists() else dict(version=1,records={},baselineAttempts={},baselineSuccess={})
     now=date(utcnow())
     # Parser updates can improve saved geometry without any additional FAA call.
-    reparsed=False
+    reparsed=state.get('parserVersion')!='critical-v3'
+    state['records']={k:f for k,f in state['records'].items() if classify(f['properties'].get('text',''),f['properties'].get('qcode',''))}
+    state['parserVersion']='critical-v3'
     for f in state['records'].values():
         props=f['properties']
+        props.update(layer='NOTAM',criticalReasons=classify(props.get('text',''),props.get('qcode','')),altitude=altitude(props.get('text',''),props.get('lower'),props.get('upper'),props.get('qline','')))
         if props.get('accuracy') not in ('reference-point','qline-envelope',None):continue
         shape,warning=extract(props.get('originalText') or props.get('text',''))
         if shape and 'circle' in shape:

@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore: ['state/**', 'web/data/**', 'web/staging/**', 'web/production/**', 'web/demo/**', 'README.md']
+    paths-ignore: ['state/**', 'web/data/**', 'web/staging/**', 'web/production/**', 'web/demo/**', 'web/maritime/**', 'README.md']
 permissions:
   contents: read
 concurrency:
@@ -32,6 +32,13 @@ jobs:
           python-version: '3.12'
       - name: Test geometry and filtering
         run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test refresh and monitor behavior
+        run: |
+          node tests/test_refresh.cjs
+          node tests/test_monitor.cjs
       - name: Build separate fictional demo
         run: python scripts/update_airspace.py --demo --output web/demo
       - name: Sync FAA worldwide classifications and changes
@@ -40,16 +47,22 @@ jobs:
           FAA_CLIENT_SECRET: ${{ secrets.FAA_CLIENT_SECRET }}
         run: |
           python scripts/sync_global.py --report /tmp/airspace-errors
+      - name: Sync official navigational warnings
+        run: python scripts/sync_maritime.py
       - name: Commit compact country snapshots
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add web/production web/demo state
+          git add web/production web/demo web/maritime state
           if ! git diff --cached --quiet; then
             git commit -m 'Update airspace snapshots [skip ci]'
             git push origin HEAD:main
           fi
+      - name: Build prototype access gate
+        env:
+          ALTA_VIEW_PASSWORD: ${{ secrets.ALTA_VIEW_PASSWORD }}
+        run: python scripts/build_access.py
       # GITHUB_TOKEN commits do not trigger another workflow. Deploy in this same run.
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
@@ -89,7 +102,7 @@ jobs:
         shell: bash
         run: |
           count=$(cat /tmp/airspace-errors)
-          if [ "$count" -gt 0 ]; then
+          if [ "$count" -gt 0 ] || [ "$(cat /tmp/maritime-errors)" -gt 0 ]; then
             echo "::error::$count country source(s) failed; previous valid data and failure status were published."
             exit 1
           fi

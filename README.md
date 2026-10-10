@@ -59,3 +59,14 @@ Production API base: `https://api-nms.aim.faa.gov/nmsapi`
 OAuth endpoint: `https://api-nms.aim.faa.gov/v1/auth/token`
 
 Staging smoke tests remain explicitly named and separate from the production schedule.
+
+## Monitor v3 (2026-10-10)
+Military/security filtering is enforced by `hazard_rules.py`, including a migration of saved FAA records. Generic Restricted/Danger or WXX alone no longer qualifies. Text parsing supports compact and degree/minute/second coordinates, separated straight-line zones, and explicit circles. Ambiguous arcs/borders remain flagged. Altitude labels preserve FL/AGL/AMSL/surface semantics and Q-line envelope provenance.
+
+`sync_maritime.py` fetches the official NGA active-warning JSON once per 30 minutes, retains the prior snapshot on failure, and publishes only critical activity candidates. Source: https://msi.nga.mil/api/publications/broadcast-warn?output=json . This is NGA-supplied coverage, not all worldwide NAVAREA coordinators. Maritime times/schedules remain original-text review fields.
+
+The six region tabs are now display scopes and camera presets. Country checkboxes persist independently; editing one switches to custom selection. The bell compares successful snapshot IDs, suppresses initial-load notices, and reports new, visible, viewport-intersecting alerts. Same-ID edits are not new alerts. Browser refresh never calls FAA or NGA.
+
+Prototype gate: set repository Secret `ALTA_VIEW_PASSWORD` to your own password (do not reuse the reference site's password). A salted PBKDF2 verifier is generated into the deployment only. Without this Secret, the prototype remains public and displays a setup-pending label. This client-side gate is bypassable and does not protect public JSON or repository content. Cloudflare Access/server-side authentication is required for actual data access control.
+
+Tests: `python -m unittest discover -s tests -v`, `node tests/test_refresh.cjs`, `node tests/test_monitor.cjs`.

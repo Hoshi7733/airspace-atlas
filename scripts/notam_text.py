@@ -21,6 +21,19 @@ def extract(value):
     text=re.sub(r'\s+',' ',str(value).upper())
     # Restrict interpretation to E) when a full ICAO message is supplied.
     if 'E)' in text:text=text.split('E)',1)[1].split('F)',1)[0]
+    # Normalize explicit hemisphere-qualified degrees/minutes/seconds only.
+    def packed(m):
+        d,mi,se,h=m.groups();width=2 if h in 'NS' else 3
+        return d.zfill(width)+mi.zfill(2)+(se.zfill(2) if se else '')+h
+    text=re.sub(r"(?<![\d.])(\d{1,3})[°:\- ](\d{2}(?:\.\d+)?)(?:[':\- ](\d{2}(?:\.\d+)?))?[\"' ]*([NSEW])\b",packed,text)
+    text=re.sub(r'\b([NS])\s*(\d{4}(?:\d{2})?(?:\.\d+)?)\s*([EW])\s*(\d{5}(?:\d{2})?(?:\.\d+)?)\b',lambda m:m[2]+m[1]+' '+m[4]+m[3],text)
+    # Explicit AREA 1/AREA 2 chains stay separate. Never bridge disjoint zones.
+    blocks=re.split(r'\b(?:AREA|ZONE)\s+[A-Z0-9]+\s*[:.)]\s*',text)
+    if len(blocks)>2:
+        shapes=[extract('AREA BOUNDED BY '+b) for b in blocks[1:]]
+        if all(s and 'geometry' in s for s,w in shapes):
+            return {'geometry':{'type':'MultiPolygon','coordinates':[s['geometry']['coordinates'] for s,w in shapes]}},None
+        return None,'複数区域の一部を確定できません。原文を確認してください。'
     matches=list(PAIR.finditer(text))
     if not matches:return None,None
     try:points=[coord(m) for m in matches]
@@ -35,9 +48,9 @@ def extract(value):
         unit=radius[2].replace(' ','');unit='M' if unit.startswith('METER') else unit
         return {'circle':{'center':points[0],'radius':float(radius[1]),'unit':unit}},None
     # Only a stated, straight-line boundary with a contiguous coordinate chain.
-    bounded=re.search(r'\b(?:BOUNDED BY|BOUNDARY DEFINED BY|AREA DEFINED BY|WI AREA|WITHIN AREA)\b',text)
+    bounded=re.search(r'\b(?:BOUNDED BY|BOUND BY|BOUNDARY DEFINED BY|AREA DEFINED BY|AREA DEFINED AS|WI AREA|WITHIN AREA|JOINING THE POINTS|FLW COORD|FOLLOWING COORDINATES)\b',text)
     if bounded and len(points)>=3:
-        if any(not re.fullmatch(r'[\s,;:/\-]*(?:TO\s*)?',text[a.end():b.start()]) for a,b in zip(matches,matches[1:])):
+        if any(not re.fullmatch(r'[\s,;:/\-]*(?:(?:TO|AND|PSN)\s*)?',text[a.end():b.start()]) for a,b in zip(matches,matches[1:])):
             return None,'複数の区域または接続が不明な座標列です。'
         if points[-1]!=points[0]:points.append(points[0])
         try:
