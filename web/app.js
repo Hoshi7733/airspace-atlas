@@ -52,6 +52,10 @@ $('#notice').textContent=note.join(' / ');$('#notice').classList.toggle('warning
 $('#mode').textContent=demoMode?'DEMO DATA':index.lastSuccess?'FAA PRODUCTION':'FAA PRODUCTION / 未取得';
 $('#updated').textContent=demoMode?'架空データ・API未使用':'FAA取得成功：'+time(index.lastSuccess);
 const st=index.stats;$('#feed-summary').textContent=demoMode?'架空データの操作デモ':st?`今回受信 ${st.received}件 / 保存中の対象警報 ${st.retained}件 / 本文形状 ${st.textShapes||0}件 / ${index.countries.filter(c=>c.count+c.unplotted>0).length}国・地域に分類。FAA配信範囲内。`:'本番データはまだ取得できていません。取得状態をご確認ください。';
+const scopeFeatures=[...feeds.values()].flatMap(d=>d.features||[]).filter(f=>viewMatch(f)&&!expired(f.properties));
+const future=scopeFeatures.filter(f=>f.properties.validFrom&&Date.parse(f.properties.validFrom)>Date.now()).length;
+const approximate=scopeFeatures.filter(f=>f.properties.accuracy==='qline-envelope').length;
+$('#visibility-summary').textContent=`この地域の描画可能な対象 ${scopeFeatures.length}件 → 表示 ${visible.length}件。開始前 ${future}件／概略円 ${approximate}件（重複あり）。条件に合う境界未確定 ${missing.length}件は下の一覧へ。全NOTAMではなく軍事・安全保障の抽出対象です。`;
 pruneSelection();updateReportUI();if(fit){if(AltaMonitor.regions[region]){const [lat,lon,z]=AltaMonitor.regions[region].view;map?.setView([lat,lon],z,{animate:true});}else fitVisible();}}
 async function json(url){const r=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(25000)});if(!r.ok)throw Error('HTTP '+r.status);return r.json();}
 async function refresh(first=false){
@@ -74,7 +78,7 @@ async function refresh(first=false){
   index=next;feeds=nextFeeds;
   if(nav?.type==='FeatureCollection'&&Array.isArray(nav.features)&&Array.isArray(nav.unplotted)){marineFeed=nav;}
   if(marineFeed){const zz=feeds.get('ZZ')||{features:[],unplotted:[],metadata:{country:'ZZ'}};feeds.set('ZZ',{...zz,features:[...zz.features,...marineFeed.features],unplotted:[...zz.unplotted,...marineFeed.unplotted]});}
-  $('#marine-status').textContent=demoMode?'海域の架空データなし':!nav?'海域JSONの取得失敗・前回分を保持':nav.metadata.status==='error'?nav.metadata.error:`NGA: ${nav.metadata.retained}件 / 最終取得 ${time(nav.metadata.lastSuccess)} / 配信範囲のみ`;
+  $('#marine-status').textContent=demoMode?'海域の架空データなし':!nav?'海域JSONの取得失敗・前回分を保持':nav.metadata.status==='error'?nav.metadata.error:`NGA受信 ${nav.metadata.received}件 → 軍事等の対象 ${nav.metadata.retained}件 / 最終取得 ${time(nav.metadata.lastSuccess)} / 配信範囲のみ`;
   if(initialCountries){selectedCountries=new Set();initialCountries=false;}
   selectedCountries=new Set([...selectedCountries].filter(c=>catalog.some(x=>x.code===c)));
   updateChoices();syncURL();render(first);detectNewAlerts();return demoMode||(nav&&nav.metadata.status==='ok')?'success':'partial';
@@ -83,6 +87,10 @@ async function refresh(first=false){
 }
 $('#tabs').onclick=e=>{const b=e.target.closest('[data-region]');if(!b)return;region=b.dataset.region;updateChoices();syncURL();if(index)render(true);};$('#country-search').oninput=updateChoices;
 $('#countries-clear').onclick=()=>{region='custom';selectedCountries.clear();syncURL();updateChoices();render(true);};$('#countries-all').onclick=()=>{region='custom';const q=$('#country-search').value.trim().toLowerCase();for(const c of catalog)if((!q||`${c.name} ${c.english} ${c.code}`.toLowerCase().includes(q)))selectedCountries.add(c.code);syncURL();updateChoices();render(true);};
+$('#map-style').onchange=()=>{const value=$('#map-style').value;$('#map').dataset.style=value;try{localStorage.setItem('alta-map-style',value);}catch{}};
+try{const saved=localStorage.getItem('alta-map-style');if(['standard','light','dark'].includes(saved))$('#map-style').value=saved;}catch{}
+$('#map-style').onchange();
+$('#show-all-hazards').onclick=()=>{region='all';$('#search').value='';$('#approx').checked=true;$('#include-future').checked=true;document.querySelectorAll('[data-kind],#layer-notam,#layer-marine').forEach(el=>el.checked=true);syncURL();updateChoices();render(true);};
 $('#search').oninput=()=>render();document.querySelectorAll('[data-kind],#approx,#include-future,#layer-notam,#layer-marine,#alt-labels').forEach(el=>el.onchange=()=>render());$('#refresh').onclick=()=>refresher.manual();$('#fit').onclick=fitVisible;$('#pdf-clear').onclick=()=>{selectedAlerts.clear();updateReportUI();};
 $('#pdf-button').onclick=async()=>{const button=$('#pdf-button');pdfBusy=true;button.disabled=true;$('#pdf-status').textContent='PDFを作成中…';try{const records=structuredClone(reportSelection());if(!records.length)throw Error('警報を選択してください。');const result=await AltaReport.download(records,{demo:demoMode,staging:false,countryName,feeds});if(reportURL)URL.revokeObjectURL(reportURL);reportURL=URL.createObjectURL(result.blob);const save=node('a','PDFを保存');save.href=reportURL;save.download=result.filename;save.className='pdf-save';$('#pdf-status').replaceChildren(node('span',`${records.length}件のPDFを作成しました。自動保存が始まらない場合はこちら： `),save);save.click();}catch(e){$('#pdf-status').textContent='PDF作成失敗：'+e.message;}finally{pdfBusy=false;updateReportUI();}};
 if(!['all','custom',...Object.keys(AltaMonitor.regions)].includes(region))region='Asia';
@@ -107,6 +115,6 @@ function detectNewAlerts(){const all=allFeatures(),bounds=map?.getBounds();if(bo
 $('#bell').onclick=()=>{const panel=$('#notifications');panel.hidden=!panel.hidden;$('#bell').setAttribute('aria-expanded',String(!panel.hidden));};
 $('#notifications-clear').onclick=()=>{unread.clear();updateBell();};
 let jumpMarker=null;
-$('#jump-form').onsubmit=e=>{e.preventDefault();try{const ll=AltaMonitor.coordinate($('#jump-lat').value,$('#jump-lon').value);map.setView(ll,9,{animate:false});if(jumpMarker)map.removeLayer(jumpMarker);jumpMarker=L.circleMarker(ll,{radius:8,color:'#5eead4',fillOpacity:0,weight:2}).addTo(map).bindTooltip('入力座標');$('#jump-status').textContent=ll.map(n=>n.toFixed(5)).join(', ');}catch(error){$('#jump-status').textContent=error.message;}};
+$('#jump-form').onsubmit=e=>{e.preventDefault();try{const ll=AltaMonitor.coordinateText($('#jump-coordinate').value);map.setView(ll,9,{animate:false});if(jumpMarker)map.removeLayer(jumpMarker);jumpMarker=L.circleMarker(ll,{radius:8,color:'#5eead4',fillOpacity:0,weight:2}).addTo(map).bindTooltip('入力座標');$('#jump-status').textContent=ll.map(n=>n.toFixed(5)).join(', ');}catch(error){$('#jump-status').textContent=error.message;}};
 map?.on('zoomend',()=>{if(index&&!loading)render();});
 })();
