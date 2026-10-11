@@ -42,6 +42,13 @@ def extract(value):
             if all(shape and 'geometry' in shape for shape,w in shapes):
                 return {'geometry':{'type':'MultiPolygon','coordinates':[shape['geometry']['coordinates'] for shape,w in shapes]}},None
             return None,'複数海域の一部の境界を確定できません。'
+    # Separate repeated explicitly bounded areas, even when schedules precede each.
+    parts=re.split(r'\b(?:AREA\s+)?BOUND(?:ED)? BY\b',text)
+    if len(parts)>2 and not PAIR.search(parts[0]):
+        shapes=[extract('AREA BOUNDED BY '+b) for b in parts[1:]]
+        if all(shape and 'geometry' in shape for shape,w in shapes):
+            return {'geometry':{'type':'MultiPolygon','coordinates':[shape['geometry']['coordinates'] for shape,w in shapes]}},None
+        return None,'複数区域の一部の境界を確定できません。'
     # Explicit AREA 1/AREA 2 chains stay separate. Never bridge disjoint zones.
     blocks=re.split(r'\b(?:AREA|ZONE)\s+[A-Z0-9]+\s*[:.)]\s*',text)
     if len(blocks)>2:
