@@ -79,9 +79,9 @@ def sync(state_path,output):
     state=json.loads(state_path.read_text()) if state_path.exists() else dict(version=1,records={},baselineAttempts={},baselineSuccess={})
     now=date(utcnow())
     # Parser updates can improve saved geometry without any additional FAA call.
-    reparsed=state.get('parserVersion')!='critical-v4'
+    reparsed=state.get('parserVersion')!='critical-v5'
     state['records']={k:f for k,f in state['records'].items() if classify(f['properties'].get('text',''),f['properties'].get('qcode',''))}
-    state['parserVersion']='critical-v4'
+    state['parserVersion']='critical-v5'
     for f in state['records'].values():
         props=f['properties']
         props.update(layer='NOTAM',criticalReasons=classify(props.get('text',''),props.get('qcode','')),altitude=altitude(props.get('text',''),props.get('lower'),props.get('upper'),props.get('qline','')))

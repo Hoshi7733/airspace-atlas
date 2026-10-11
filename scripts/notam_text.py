@@ -20,13 +20,28 @@ def coord(match):
 def extract(value):
     text=re.sub(r'\s+',' ',str(value).upper())
     # Restrict interpretation to E) when a full ICAO message is supplied.
-    if 'E)' in text:text=text.split('E)',1)[1].split('F)',1)[0]
+    section=re.search(r'(?:^|\s)E\)\s*',text)
+    if section:text=re.split(r'\s+F\)',text[section.end():],maxsplit=1)[0]
     # Normalize explicit hemisphere-qualified degrees/minutes/seconds only.
     def packed(m):
         d,mi,se,h=m.groups();width=2 if h in 'NS' else 3
         return d.zfill(width)+mi.zfill(2)+(se.zfill(2) if se else '')+h
     text=re.sub(r"(?<![\d.])(\d{1,3})[°:\- ](\d{2}(?:\.\d+)?)(?:[':\- ](\d{2}(?:\.\d+)?))?[\"' ]*([NSEW])\b",packed,text)
     text=re.sub(r'\b([NS])\s*(\d{4}(?:\d{2})?(?:\.\d+)?)\s*([EW])\s*(\d{5}(?:\d{2})?(?:\.\d+)?)\b',lambda m:m[2]+m[1]+' '+m[4]+m[3],text)
+    # Numbered AIRSPACE boundaries and lettered maritime areas are separate polygons.
+    parts=re.split(r'\(\d+\)\s*AIRSPACE\s*:',text)
+    if len(parts)>2:
+        shapes=[extract(b.split('RMK:',1)[0]) for b in parts[1:]]
+        if all(shape and 'geometry' in shape for shape,w in shapes):
+            return {'geometry':{'type':'MultiPolygon','coordinates':[shape['geometry']['coordinates'] for shape,w in shapes]}},None
+        return None,'複数空域の一部の境界を確定できません。'
+    if re.search(r'\bAREAS? BOUND(?:ED)? BY\s*:',text):
+        parts=re.split(r'\b[A-Z]\.\s*(?=\d{4,6}(?:\.\d+)?[NS])',text)
+        if len(parts)>2:
+            shapes=[extract('AREA BOUNDED BY '+b) for b in parts[1:]]
+            if all(shape and 'geometry' in shape for shape,w in shapes):
+                return {'geometry':{'type':'MultiPolygon','coordinates':[shape['geometry']['coordinates'] for shape,w in shapes]}},None
+            return None,'複数海域の一部の境界を確定できません。'
     # Explicit AREA 1/AREA 2 chains stay separate. Never bridge disjoint zones.
     blocks=re.split(r'\b(?:AREA|ZONE)\s+[A-Z0-9]+\s*[:.)]\s*',text)
     if len(blocks)>2:
